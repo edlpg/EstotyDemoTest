@@ -68,6 +68,17 @@ namespace MiniGolf.Hole
         /// Stops all hole type-change timers. Called on game over so warning sounds
         /// and flash animations do not continue playing on the game-over screen.
         /// </summary>
+        /// <summary>
+        /// Re-enables all holes after a ball reset. Called by <see cref="Core.GameManager"/>
+        /// once the ball is safely back at its start position, guaranteeing no hole is
+        /// sitting on top of the ball when triggers are re-armed.
+        /// </summary>
+        public void ActivateHoles()
+        {
+            foreach (var hole in _holes)
+                hole.SetActive(true);
+        }
+
         public void StopAllTimers()
         {
             foreach (var hole in _holes)
@@ -84,7 +95,7 @@ namespace MiniGolf.Hole
 
             foreach (var hole in _holes)
             {
-                hole.SetActive(true);                    // Re-enable holes that were deactivated by a ball entry.
+                hole.SetActive(false);                   // Deactivate before teleporting — prevents the frozen ball from re-triggering a hole that lands on it.
                 hole.MoveTo(GetRandomPosition());
                 hole.StartTypeChangeTimer();             // Restart the random type-change cycle.
             }
@@ -133,7 +144,7 @@ namespace MiniGolf.Hole
         /// </summary>
         private Vector2 GetRandomPosition()
         {
-            const int maxAttempts = 30;
+            const int maxAttempts = 60;
             var   min        = _config.playfieldMin;
             var   max        = _config.playfieldMax;
             float safeRadius = _config.holeSafeRadiusFromBall;
@@ -143,7 +154,6 @@ namespace MiniGolf.Hole
 
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
-                // Keep 1 unit of margin from each wall edge.
                 var candidate = new Vector2(
                     Random.Range(min.x + 1f, max.x - 1f),
                     Random.Range(min.y + 1f, max.y - 1f)
@@ -155,10 +165,12 @@ namespace MiniGolf.Hole
                 return candidate;
             }
 
-            // Fallback: use the upper half of the field to avoid the ball start area.
+            // Fallback: guaranteed above the ball safe zone (min.y + 2f was equal to
+            // ballStartPosition.y in portrait layout, causing holes to spawn on the ball).
+            float safeMinY = ballStart.y + safeRadius + 0.5f;
             return new Vector2(
                 Random.Range(min.x + 1f, max.x - 1f),
-                Random.Range(min.y + 2f, max.y - 1f)
+                Random.Range(safeMinY, max.y - 1f)
             );
         }
 

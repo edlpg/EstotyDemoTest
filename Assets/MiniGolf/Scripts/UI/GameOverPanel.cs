@@ -23,12 +23,8 @@ namespace MiniGolf.UI
         /// clear — it makes the intent of every call obvious.
         /// </summary>
         [SerializeField] private GameObject _panelRoot;
-
-        /// <summary>Headline label updated by <see cref="Show"/>.</summary>
-        [SerializeField] private TMP_Text _gameOverText;
-
-        /// <summary>Button that triggers a full scene reload.</summary>
-        [SerializeField] private Button _restartButton;
+        [SerializeField] private TMP_Text   _gameOverText;
+        [SerializeField] private Button     _restartButton;
 
         // ── Lifecycle ──────────────────────────────────────────────────────────
 
@@ -38,7 +34,6 @@ namespace MiniGolf.UI
         /// </summary>
         private void Awake()
         {
-            // Null-conditional guard in case the reference is missing in the Inspector.
             _restartButton?.onClick.AddListener(OnRestartClicked);
         }
 
@@ -48,12 +43,12 @@ namespace MiniGolf.UI
         /// Activates the panel and sets the headline text.
         /// Triggers <c>Awake</c> on first call (see class summary).
         /// </summary>
-        public void Show()
+        public void Show(int finalScore)
         {
             _panelRoot.SetActive(true);
 
             if (_gameOverText != null)
-                _gameOverText.text = "TIME'S UP!";
+                _gameOverText.text = $"TIME'S UP!\n<size=55%><color=#FFD700>Gold collected: {finalScore}</color></size>";
         }
 
         /// <summary>Deactivates the panel. Safe to call even when already hidden.</summary>

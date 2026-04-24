@@ -47,15 +47,14 @@ namespace MiniGolf.Core
         [SerializeField] private HoleManager    _holeManager;
 
         [Header("UI")]
-        [SerializeField] private TimerDisplay   _timerDisplay;
-        [SerializeField] private GameOverPanel  _gameOverPanel;
+        [SerializeField] private TimerDisplay  _timerDisplay;
+        [SerializeField] private GameOverPanel _gameOverPanel;
+        [SerializeField] private TMPro.TMP_Text _scoreText;
 
-        /// <summary>
-        /// The current phase of the game. Read by nothing externally right now,
-        /// but exposed as a property for future systems (e.g. a pause menu) that
-        /// need to query state without coupling to GameManager's internals.
-        /// </summary>
         public GameState CurrentState { get; private set; } = GameState.Idle;
+
+        private int _score;
+        private Coroutine _resolveShotCoroutine;
 
         private static readonly WaitForSeconds WaitSpawnAnimation = new(0.35f);
         private WaitForSeconds _waitBallReset;
@@ -110,12 +109,15 @@ namespace MiniGolf.Core
             _waitBallReset      = new WaitForSeconds(_config.ballResetDelay);
             _waitHoleReposition = new WaitForSeconds(_config.holeRepositionDelay);
             CurrentState = GameState.Idle;
-            _gameOverPanel.Hide();          // Safe no-op if already hidden.
+            _score = 0;
+            UpdateScoreText();
+            _gameOverPanel.Hide();
             _holeManager.Initialize(_config);
             _ballController.Initialize(_config);
             _timerService.StartTimer(_config.initialTime);
             _ballController.EnableInput();
         }
+
 
         // ── State Machine Handlers ─────────────────────────────────────────────
 
@@ -158,24 +160,34 @@ namespace MiniGolf.Core
 
             CurrentState = GameState.Resolving;
             AudioManager.Instance?.PlayMiss();
-            StartCoroutine(ResolveShot());
+            _resolveShotCoroutine = StartCoroutine(ResolveShot());
         }
 
         /// <summary>
         /// Fires when the ball enters any hole.
         /// Freezes the ball at the hole, applies the timer effect, then resolves.
-        /// Guard: only valid from <see cref="GameState.InFlight"/> to prevent the
-        /// stop-monitor coroutine from triggering a second resolution.
+        /// Primary guard: <see cref="GameState.InFlight"/>.
+        /// Fallback guard: <see cref="GameState.Resolving"/> — catches the race where
+        /// MonitorBallStop fires just before OnTriggerStay2D on a slow-rolling ball.
+        /// In that case the running miss-resolution is cancelled and replaced by the
+        /// correct hole-entry resolution.
         /// </summary>
         private void HandleBallEnteredHole(HoleType holeType)
         {
-            if (CurrentState != GameState.InFlight) return;
+            if (CurrentState != GameState.InFlight && CurrentState != GameState.Resolving) return;
+
+            // Cancel a miss-resolution that may have started a split-second earlier.
+            if (_resolveShotCoroutine != null)
+            {
+                StopCoroutine(_resolveShotCoroutine);
+                _resolveShotCoroutine = null;
+            }
 
             CurrentState = GameState.Resolving;
             _ballController.FreezeBall(); // Stop the ball at the hole position.
 
             ApplyHoleEffect(holeType);
-            StartCoroutine(ResolveShot());
+            _resolveShotCoroutine = StartCoroutine(ResolveShot());
         }
 
         /// <summary>
@@ -190,7 +202,7 @@ namespace MiniGolf.Core
             _holeManager.LockPositions();
             _holeManager.StopAllTimers();
             AudioManager.Instance?.PlayGameOver();
-            _gameOverPanel.Show();
+            _gameOverPanel.Show(_score);
         }
 
         // ── Private Helpers ────────────────────────────────────────────────────
@@ -204,6 +216,8 @@ namespace MiniGolf.Core
         {
             if (holeType == HoleType.Good)
             {
+                _score++;
+                UpdateScoreText();
                 _timerService.AddTime(_config.goodHoleTimeBonus);
                 _timerDisplay.ShowBonus(_config.goodHoleTimeBonus);
                 AudioManager.Instance?.PlayGoodHole();
@@ -211,7 +225,7 @@ namespace MiniGolf.Core
             else
             {
                 _timerService.SubtractTime(_config.badHoleTimePenalty);
-                _timerDisplay.ShowBonus(-_config.badHoleTimePenalty); // Negative triggers red popup.
+                _timerDisplay.ShowBonus(-_config.badHoleTimePenalty);
                 AudioManager.Instance?.PlayBadHole();
             }
         }
@@ -228,6 +242,12 @@ namespace MiniGolf.Core
         /// </list>
         /// Exits early if the timer expired during the wait (GameOver takes priority).
         /// </summary>
+        private void UpdateScoreText()
+        {
+            if (_scoreText != null)
+                _scoreText.text = _score.ToString();
+        }
+
         private IEnumerator ResolveShot()
         {
             yield return _waitBallReset;
@@ -241,6 +261,9 @@ namespace MiniGolf.Core
             _ballController.ResetToStartPosition();
             yield return WaitSpawnAnimation;
 
+            // Re-arm holes only after the ball has finished spawning at its start
+            // position — safe radius guarantees no hole is sitting on the ball here.
+            _holeManager.ActivateHoles();
             CurrentState = GameState.Idle;
             _ballController.EnableInput();
         }

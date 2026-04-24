@@ -89,6 +89,11 @@ namespace MiniGolf.Ball
             _rb           = GetComponent<Rigidbody2D>();
             _mainCamera   = Camera.main;
             _cameraDepth  = -_mainCamera.transform.position.z;
+
+            // Continuous collision detection prevents the ball from tunnelling
+            // through hole triggers at high speeds (discrete can miss a full
+            // pass-through in a single physics tick).
+            _rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         }
 
         /// <summary>
@@ -181,9 +186,8 @@ namespace MiniGolf.Ball
         private void HandlePressDown(Vector2 screenPos)
         {
             _pressWorldPos        = ScreenToWorld(screenPos);
-            _aimOrigin            = transform.position;
+            _aimOrigin            = _rb.position;
             _isAiming             = true;
-            _rb.isKinematic       = true; // Prevent physics fighting manual pullback position.
             _spriteRenderer.color = BallAimingColor;
             OnAimStarted?.Invoke();
         }
@@ -203,8 +207,9 @@ namespace MiniGolf.Ball
             float normalizedForce = distance / _config.maxDragDistance;
 
             // Pull the ball back in the drag direction, dampened (not 1:1 with finger).
+            // rb.position avoids generating spurious velocity on a dynamic Rigidbody2D.
             Vector2 pullback = delta.normalized * (normalizedForce * MaxPullback);
-            transform.position = new Vector3(_aimOrigin.x + pullback.x, _aimOrigin.y + pullback.y, 0f);
+            _rb.position = _aimOrigin + pullback;
 
             // Trajectory starts from the pulled-back ball position.
             _trajectoryRenderer.UpdateTrajectory(
@@ -226,17 +231,13 @@ namespace MiniGolf.Ball
             _spriteRenderer.color = BallIdleColor;
 
             // Snap ball back to its origin before launching.
-            transform.position = new Vector3(_aimOrigin.x, _aimOrigin.y, 0f);
+            _rb.position = _aimOrigin;
 
             Vector2 currentWorldPos = ScreenToWorld(screenPos);
             Vector2 delta           = currentWorldPos - _pressWorldPos;
 
             // Ignore accidental taps or near-zero drags.
-            if (delta.magnitude < 0.05f)
-            {
-                _rb.isKinematic = false;
-                return;
-            }
+            if (delta.magnitude < 0.05f) return;
 
             float distance = Mathf.Min(delta.magnitude, _config.maxDragDistance);
             float force    = (distance / _config.maxDragDistance) * _config.maxShootForce;
@@ -277,6 +278,11 @@ namespace MiniGolf.Ball
             {
                 if (_rb.linearVelocity.magnitude < _config.ballStopThreshold)
                 {
+                    // Yield one physics tick so that any OnTriggerStay2D on a hole
+                    // fires before we declare a miss. If the ball is sitting inside
+                    // a hole trigger, HandleBallEnteredHole will set the state to
+                    // Resolving, and HandleBallStopped will then be a no-op.
+                    yield return new WaitForFixedUpdate();
                     StopMonitoring();
                     OnBallStopped?.Invoke();
                     yield break;
@@ -300,8 +306,7 @@ namespace MiniGolf.Ball
         private void CancelAim()
         {
             _isAiming             = false;
-            _rb.isKinematic       = false;
-            transform.position    = new Vector3(_aimOrigin.x, _aimOrigin.y, 0f);
+            _rb.position          = _aimOrigin;
             _trajectoryRenderer.Hide();
             _spriteRenderer.color = BallIdleColor;
         }

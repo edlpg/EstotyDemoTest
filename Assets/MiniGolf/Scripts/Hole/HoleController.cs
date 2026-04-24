@@ -27,6 +27,14 @@ namespace MiniGolf.Hole
 
         private GameConfig _config;
 
+        /// <summary>The inner cavity child SpriteRenderer, repurposed as the warning ring by scaling it out.</summary>
+        private SpriteRenderer _outerRing;
+
+        /// <summary>Original state of the cavity — restored after each warning flash.</summary>
+        private Vector3 _ringOriginalScale;
+        private Color   _ringOriginalColor;
+        private int     _ringOriginalSortingOrder;
+
         /// <summary>Reference to the running type-change coroutine so it can be cancelled cleanly.</summary>
         private Coroutine _changeCoroutine;
 
@@ -63,9 +71,36 @@ namespace MiniGolf.Hole
         public void Initialize(GameConfig config, HoleType initialType)
         {
             _config = config;
+            FindOuterRing();
             SetType(initialType);
-            IsActive = true;
+            SetActive(true); // Explicitly enables the collider, not just the flag.
+            // Make trigger radius large enough to detect the ball across the whole visual hole.
+            _collider.radius = 0.65f;
             StartTypeChangeTimer();
+        }
+
+        /// <summary>
+        /// Finds the existing inner cavity child SpriteRenderer and saves its state so it
+        /// can be temporarily repurposed as the warning ring during flashing.
+        /// </summary>
+        private void FindOuterRing()
+        {
+            if (_outerRing != null) return;
+
+            foreach (var sr in GetComponentsInChildren<SpriteRenderer>())
+            {
+                if (sr == _spriteRenderer) continue;
+                if (sr.gameObject == gameObject) continue; // Never pick root's own SR.
+
+                _outerRing                = sr;
+                _ringOriginalScale        = sr.transform.localScale;
+                _ringOriginalColor        = sr.color;
+                _ringOriginalSortingOrder = sr.sortingOrder;
+
+                // Ensure cavity renders in FRONT of the main circle at rest (hole depth look).
+                _outerRing.sortingOrder = _spriteRenderer.sortingOrder + 1;
+                break;
+            }
         }
 
         // ── Public API ─────────────────────────────────────────────────────────
@@ -78,7 +113,9 @@ namespace MiniGolf.Hole
         public void SetActive(bool active)
         {
             IsActive = active;
-            _collider.enabled = active;
+            // Collider stays enabled at all times; IsActive alone guards OnTriggerEnter2D.
+            // Disabling the collider caused permanent misses when spurious overlaps fired
+            // during ball resets or spawning.
         }
 
         /// <summary>
@@ -99,6 +136,15 @@ namespace MiniGolf.Hole
                 StopCoroutine(_changeCoroutine);
                 _changeCoroutine = null;
             }
+            RestoreOuterRing();
+        }
+
+        private void RestoreOuterRing()
+        {
+            if (_outerRing == null) return;
+            _outerRing.sortingOrder         = _spriteRenderer.sortingOrder + 1; // Back in front.
+            _outerRing.transform.localScale = _ringOriginalScale;
+            _outerRing.color                = _ringOriginalColor;
         }
 
         /// <summary>Plays the one-shot particle burst at this hole's world position.</summary>
@@ -181,21 +227,25 @@ namespace MiniGolf.Hole
         /// <param name="duration">Total flash duration in seconds.</param>
         private IEnumerator FlashWarningRoutine(float duration)
         {
-            float elapsed         = 0f;
-            const float flashSpeed = 8f; // Radians per second — higher = faster pulse.
+            if (_outerRing == null) yield break;
 
-            // Colors transition FROM current type TO future type.
-            Color from = HoleType == HoleType.Good ? GoodColor : BadColor;
-            Color to   = HoleType == HoleType.Good ? BadColor  : GoodColor;
+            // Move cavity BEHIND the main fill so only the scaled-out edge is visible as a ring.
+            _outerRing.sortingOrder         = _spriteRenderer.sortingOrder - 1;
+            _outerRing.transform.localScale = Vector3.one * 1.15f;
 
+            Color ringColor        = HoleType == HoleType.Good ? BadColor : GoodColor;
+            const float flashSpeed = 7f;
+
+            float elapsed = 0f;
             while (elapsed < duration)
             {
-                // Sin oscillates between -1 and 1; remap to 0–1 for Color.Lerp.
-                float t = (Mathf.Sin(elapsed * flashSpeed) + 1f) * 0.5f;
-                _spriteRenderer.color = Color.Lerp(from, to, t);
-                elapsed += Time.deltaTime;
-                yield return null; // Resume next frame.
+                float alpha      = (Mathf.Sin(elapsed * flashSpeed) + 1f) * 0.5f;
+                _outerRing.color = new Color(ringColor.r, ringColor.g, ringColor.b, alpha);
+                elapsed         += Time.deltaTime;
+                yield return null;
             }
+
+            RestoreOuterRing();
         }
 
         // ── Physics Callback ───────────────────────────────────────────────────
@@ -208,7 +258,16 @@ namespace MiniGolf.Hole
         ///   <item>Non-ball objects (walls, other holes) via the "Ball" tag check.</item>
         /// </list>
         /// </summary>
-        private void OnTriggerEnter2D(Collider2D other)
+        private void OnTriggerEnter2D(Collider2D other) => HandleBallContact(other);
+
+        /// <summary>
+        /// Fallback for cases where Enter fires while the collider is briefly
+        /// mid-animation and the engine drops the event. Stay catches those on the
+        /// next physics tick without double-triggering (IsActive guard handles that).
+        /// </summary>
+        private void OnTriggerStay2D(Collider2D other) => HandleBallContact(other);
+
+        private void HandleBallContact(Collider2D other)
         {
             if (!IsActive) return;
             if (!other.CompareTag("Ball")) return;
