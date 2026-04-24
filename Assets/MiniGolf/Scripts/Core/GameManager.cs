@@ -230,24 +230,25 @@ namespace MiniGolf.Core
             }
         }
 
-        /// <summary>
-        /// Coroutine that runs after every shot outcome (hole or miss):
-        /// <list type="number">
-        ///   <item>Wait <see cref="GameConfig.ballResetDelay"/> — gives the player a moment to see the outcome.</item>
-        ///   <item>Reposition holes to new random locations.</item>
-        ///   <item>Wait <see cref="GameConfig.holeRepositionDelay"/> — brief pause so repositioning is visible.</item>
-        ///   <item>Reset the ball to the start position with a spawn animation.</item>
-        ///   <item>Wait 0.35 s — let the animation finish before accepting new input.</item>
-        ///   <item>Return to <see cref="GameState.Idle"/> and re-enable input.</item>
-        /// </list>
-        /// Exits early if the timer expired during the wait (GameOver takes priority).
-        /// </summary>
+        /// <summary>Updates the in-game score HUD label.</summary>
         private void UpdateScoreText()
         {
             if (_scoreText != null)
                 _scoreText.text = _score.ToString();
         }
 
+        /// <summary>
+        /// Coroutine that runs after every shot outcome (hole or miss):
+        /// <list type="number">
+        ///   <item>Wait <see cref="GameConfig.ballResetDelay"/> — gives the player a moment to see the outcome.</item>
+        ///   <item>Reposition holes to new random locations (holes are deactivated during this window).</item>
+        ///   <item>Wait <see cref="GameConfig.holeRepositionDelay"/> — brief pause before ball respawns.</item>
+        ///   <item>Reset the ball to the start position with a spawn animation.</item>
+        ///   <item>Wait 0.35 s — let the animation finish, then re-arm hole triggers.</item>
+        ///   <item>Return to <see cref="GameState.Idle"/> and re-enable input.</item>
+        /// </list>
+        /// Exits early if the timer expired during the wait (GameOver takes priority).
+        /// </summary>
         private IEnumerator ResolveShot()
         {
             yield return _waitBallReset;

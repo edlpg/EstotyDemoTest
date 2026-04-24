@@ -57,8 +57,7 @@ namespace MiniGolf.UI
         // ── Private: Button Handler ────────────────────────────────────────────
 
         /// <summary>
-        /// Reloads the active scene by its build index, effectively restarting the game.
-        /// Using build index rather than scene name avoids hardcoded string dependencies.
+        /// Reloads the active scene by name, effectively restarting the game.
         /// </summary>
         private void OnRestartClicked() =>
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);

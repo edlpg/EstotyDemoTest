@@ -65,10 +65,6 @@ namespace MiniGolf.Hole
         public void UnlockPositions() => _positionsLocked = false;
 
         /// <summary>
-        /// Stops all hole type-change timers. Called on game over so warning sounds
-        /// and flash animations do not continue playing on the game-over screen.
-        /// </summary>
-        /// <summary>
         /// Re-enables all holes after a ball reset. Called by <see cref="Core.GameManager"/>
         /// once the ball is safely back at its start position, guaranteeing no hole is
         /// sitting on top of the ball when triggers are re-armed.
@@ -79,6 +75,10 @@ namespace MiniGolf.Hole
                 hole.SetActive(true);
         }
 
+        /// <summary>
+        /// Stops all hole type-change timers. Called on game over so warning sounds
+        /// and flash animations do not continue playing on the game-over screen.
+        /// </summary>
         public void StopAllTimers()
         {
             foreach (var hole in _holes)
