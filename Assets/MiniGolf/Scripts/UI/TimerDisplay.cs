@@ -1,4 +1,5 @@
 using System.Collections;
+using MiniGolf.Audio;
 using MiniGolf.Services;
 using TMPro;
 using UnityEngine;
@@ -116,6 +117,10 @@ namespace MiniGolf.UI
             if (seconds == _lastDisplayedSeconds) return;
             _lastDisplayedSeconds = seconds;
             _timerText.text = TimerStrings[Mathf.Clamp(seconds, 0, 99)];
+
+            // Tick sound on every whole second in the critical zone.
+            if (seconds <= 5 && seconds > 0)
+                AudioManager.Instance?.PlayCountdown();
         }
 
         // ── Private: Bonus Animation ───────────────────────────────────────────

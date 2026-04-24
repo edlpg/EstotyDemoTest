@@ -19,8 +19,8 @@ MonoBehaviour:
   maxShootForce: 18
   maxDragDistance: 2.5
   ballStopThreshold: 0.05
-  ballResetDelay: 0.6
-  holeRepositionDelay: 0.3
+  ballResetDelay: 0.3
+  holeRepositionDelay: 0.04
   holeCount: 4
   holeChangeMinInterval: 4
   holeChangeMaxInterval: 9

@@ -151,7 +151,7 @@ namespace MiniGolf.Editor
             sr.sprite  = LoadOrGenerateCircleSprite();
             sr.color   = new Color(0.2f, 0.85f, 0.35f);
             sr.sortingOrder = 2;
-            go.transform.localScale = Vector3.one * 0.42f;
+            go.transform.localScale = Vector3.one * 0.32f;
 
             // Physics
             var rb = go.AddComponent<Rigidbody2D>();

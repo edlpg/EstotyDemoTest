@@ -49,10 +49,10 @@ namespace MiniGolf.Config
         public float ballStopThreshold = 0.05f;
 
         /// <summary>Seconds to wait after a shot outcome before repositioning holes.</summary>
-        public float ballResetDelay = 0.6f;
+        public float ballResetDelay = 0.3f;
 
         /// <summary>Seconds to wait after repositioning holes before resetting the ball.</summary>
-        public float holeRepositionDelay = 0.3f;
+        public float holeRepositionDelay = 0.04f;
 
         // ─────────────────────────── Holes ───────────────────────────
 
@@ -98,7 +98,7 @@ namespace MiniGolf.Config
         public Vector2 playfieldMax = new(2.3f, 4.5f);
 
         /// <summary>World position the ball is reset to after every shot.</summary>
-        public Vector2 ballStartPosition = new(0f, -3.8f);
+        public Vector2 ballStartPosition = new(0f, -2.5f);
 
         /// <summary>
         /// Holes will not spawn within this radius of <see cref="ballStartPosition"/>.
